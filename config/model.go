@@ -7,7 +7,7 @@ var ModelMap = map[string]string{
 	"claude-4.5-opus":     "claude45opus",
 	"gemini-3-pro":        "gemini30pro",
 	"gemini-3-flash":      "gemini30flash",
-	"grok-4.1":            "grok41",
+	"grok-4.1":            "grok41nonreasoning",
 	"kimi-k2-thinking":    "kimik2thinking",
 	"claude-4.5-sonnet":   "claude45sonnet",
 }
@@ -66,3 +66,4 @@ func buildResponseModels() {
 		})
 	}
 }
+
