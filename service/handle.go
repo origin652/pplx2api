@@ -53,7 +53,7 @@ func ChatCompletionsHandler(c *gin.Context) {
 	// Get model or use default
 	model := req.Model
 	if model == "" {
-		model = "claude-3.7-sonnet"
+		model = "sonar"
 	}
 	openSearch := false
 	if strings.HasSuffix(model, "-search") {
