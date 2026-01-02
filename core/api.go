@@ -436,12 +436,15 @@ type CloudinaryUploadInfo struct {
 }
 
 // UploadFile is a placeholder for file upload functionality
-func (c *Client) createUploadURL(filename string, contentType string, isTextOnly bool) (*UploadURLResponse, error) {
+func (c *Client) createUploadURL(filename string, contentType string, fileSize int, isTextOnly bool) (*UploadURLResponse, error) {
+	if fileSize <= 0 {
+		fileSize = 12000
+	}
 	requestBody := map[string]interface{}{
 		"filename":     filename,
 		"content_type": contentType,
 		"source":       "default",
-		"file_size":    12000,
+		"file_size":    fileSize,
 		"force_image":  false,
 	}
 	if isTextOnly {
@@ -479,7 +482,7 @@ func (c *Client) UploadImage(img_list []string) error {
 	for _, img := range img_list {
 		filename := utils.RandomString(5) + ".jpg"
 		// Create upload URL
-		uploadURLResponse, err := c.createUploadURL(filename, "image/jpeg", false)
+		uploadURLResponse, err := c.createUploadURL(filename, "image/jpeg", 0, false)
 		if err != nil {
 			logger.Error(fmt.Sprintf("Error creating upload URL: %v", err))
 			return err
@@ -618,7 +621,7 @@ func (c *Client) UploadText(context string) error {
 	filedata := base64.StdEncoding.EncodeToString([]byte(context))
 	filename := utils.RandomString(5) + ".txt"
 	// Upload images to Cloudinary
-	uploadURLResponse, err := c.createUploadURL(filename, "text/plain", true)
+	uploadURLResponse, err := c.createUploadURL(filename, "text/plain", len([]byte(context)), true)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Error creating upload URL: %v", err))
 		return err
