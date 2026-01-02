@@ -531,6 +531,7 @@ func (c *Client) UloadFileToCloudinary(uploadInfo CloudinaryUploadInfo, contentT
 			"x-amz-security-token": uploadInfo.Xamzsecuritytoken,
 			"policy":               uploadInfo.Policy,
 			"signature":            uploadInfo.Signature,
+			"x-amz-meta-is_text_only": "true",
 		}
 	}
 	var requestBody bytes.Buffer
