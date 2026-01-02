@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"pplx2api/config"
 	"pplx2api/logger"
 	"pplx2api/model"
@@ -435,13 +436,19 @@ type CloudinaryUploadInfo struct {
 }
 
 // UploadFile is a placeholder for file upload functionality
-func (c *Client) createUploadURL(filename string, contentType string) (*UploadURLResponse, error) {
+func (c *Client) createUploadURL(filename string, contentType string, fileSize int, isTextOnly bool) (*UploadURLResponse, error) {
+	if fileSize <= 0 {
+		fileSize = 12000
+	}
 	requestBody := map[string]interface{}{
 		"filename":     filename,
 		"content_type": contentType,
 		"source":       "default",
-		"file_size":    12000,
+		"file_size":    fileSize,
 		"force_image":  false,
+	}
+	if isTextOnly {
+		requestBody["is_text_only"] = true
 	}
 	resp, err := c.client.R().
 		SetBody(requestBody).
@@ -475,7 +482,7 @@ func (c *Client) UploadImage(img_list []string) error {
 	for _, img := range img_list {
 		filename := utils.RandomString(5) + ".jpg"
 		// Create upload URL
-		uploadURLResponse, err := c.createUploadURL(filename, "image/jpeg")
+		uploadURLResponse, err := c.createUploadURL(filename, "image/jpeg", 0, false)
 		if err != nil {
 			logger.Error(fmt.Sprintf("Error creating upload URL: %v", err))
 			return err
@@ -523,14 +530,14 @@ func (c *Client) UloadFileToCloudinary(uploadInfo CloudinaryUploadInfo, contentT
 		}
 	} else {
 		formFields = map[string]string{
-			"acl":                  uploadInfo.ACL,
-			"Content-Type":         "text/plain",
-			"tagging":              uploadInfo.Tagging,
-			"key":                  uploadInfo.Key,
-			"AWSAccessKeyId":       uploadInfo.AWSAccessKeyId,
-			"x-amz-security-token": uploadInfo.Xamzsecuritytoken,
-			"policy":               uploadInfo.Policy,
-			"signature":            uploadInfo.Signature,
+			"acl":                     uploadInfo.ACL,
+			"Content-Type":            "text/plain",
+			"tagging":                 uploadInfo.Tagging,
+			"key":                     uploadInfo.Key,
+			"AWSAccessKeyId":          uploadInfo.AWSAccessKeyId,
+			"x-amz-security-token":    uploadInfo.Xamzsecuritytoken,
+			"policy":                  uploadInfo.Policy,
+			"signature":               uploadInfo.Signature,
 			"x-amz-meta-is_text_only": "true",
 		}
 	}
@@ -551,7 +558,15 @@ func (c *Client) UloadFileToCloudinary(uploadInfo CloudinaryUploadInfo, contentT
 	}
 
 	// 创建一个文件部分
-	part, err := writer.CreateFormFile("file", filename) // 替换 filename.ext 为实际文件名
+	var part io.Writer
+	if contentType == "img" {
+		part, err = writer.CreateFormFile("file", filename) // 替换 filename.ext 为实际文件名
+	} else {
+		header := make(textproto.MIMEHeader)
+		header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, filename))
+		header.Set("Content-Type", "text/plain; charset=utf-8")
+		part, err = writer.CreatePart(header)
+	}
 	if err != nil {
 		logger.Error(fmt.Sprintf("Error creating form file: %v", err))
 		return err
@@ -606,7 +621,7 @@ func (c *Client) UploadText(context string) error {
 	filedata := base64.StdEncoding.EncodeToString([]byte(context))
 	filename := utils.RandomString(5) + ".txt"
 	// Upload images to Cloudinary
-	uploadURLResponse, err := c.createUploadURL(filename, "text/plain")
+	uploadURLResponse, err := c.createUploadURL(filename, "text/plain", len([]byte(context)), true)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Error creating upload URL: %v", err))
 		return err
