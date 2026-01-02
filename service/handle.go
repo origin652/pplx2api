@@ -62,6 +62,7 @@ func ChatCompletionsHandler(c *gin.Context) {
 	}
 	model = config.ModelMapGet(model, model) // 获取模型名称
 	var prompt strings.Builder
+	var lastUserText strings.Builder
 	img_data_list := []string{}
 	// Format messages into a single prompt
 	for _, msg := range req.Messages {
@@ -79,13 +80,24 @@ func ChatCompletionsHandler(c *gin.Context) {
 		switch v := content.(type) {
 		case string: // 如果 content 直接是 string
 			prompt.WriteString(v + "\n\n")
+			if role == "user" {
+				lastUserText.Reset()
+				lastUserText.WriteString(v)
+			}
 		case []interface{}: // 如果 content 是 []interface{} 类型的数组
+			var userTextChunk strings.Builder
 			for _, item := range v {
 				if itemMap, ok := item.(map[string]interface{}); ok {
 					if itemType, ok := itemMap["type"].(string); ok {
 						if itemType == "text" {
 							if text, ok := itemMap["text"].(string); ok {
 								prompt.WriteString(text + "\n\n")
+								if role == "user" {
+									if userTextChunk.Len() > 0 {
+										userTextChunk.WriteString("\n")
+									}
+									userTextChunk.WriteString(text)
+								}
 							}
 						} else if itemType == "image_url" {
 							if imageUrl, ok := itemMap["image_url"].(map[string]interface{}); ok {
@@ -103,6 +115,10 @@ func ChatCompletionsHandler(c *gin.Context) {
 						}
 					}
 				}
+			}
+			if role == "user" && userTextChunk.Len() > 0 {
+				lastUserText.Reset()
+				lastUserText.WriteString(userTextChunk.String())
 			}
 		}
 	}
@@ -147,6 +163,8 @@ func ChatCompletionsHandler(c *gin.Context) {
 			}
 			prompt.Reset()
 			prompt.WriteString(config.ConfigInstance.PromptForFile)
+			prompt.WriteString("\n\nThe full conversation is in the attached text file. Respond to the latest user request below:\n")
+			prompt.WriteString(lastUserText.String())
 		}
 		if _, err := pplxClient.SendMessage(prompt.String(), req.Stream, config.ConfigInstance.IsIncognito, c); err != nil {
 			logger.Error(fmt.Sprintf("Failed to send message: %v", err))
