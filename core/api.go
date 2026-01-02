@@ -250,6 +250,8 @@ func (c *Client) HandleResponse(body io.ReadCloser, stream bool, gc *gin.Context
 	inThinking := false
 	thinkShown := false
 	final := false
+	lastMarkdownChunkCount := 0
+	lastReasoningGoalCount := 0
 	for scanner.Scan() {
 		select {
 		case <-clientDone:
@@ -327,18 +329,25 @@ func (c *Client) HandleResponse(body io.ReadCloser, stream bool, gc *gin.Context
 		for _, block := range response.Blocks {
 			// Handle reasoning plan blocks (thinking)
 			if block.ReasoningPlanBlock != nil && len(block.ReasoningPlanBlock.Goals) > 0 {
-
+				if len(block.ReasoningPlanBlock.Goals) < lastReasoningGoalCount {
+					lastReasoningGoalCount = 0
+				}
+				startIndex := lastReasoningGoalCount
+				if startIndex >= len(block.ReasoningPlanBlock.Goals) {
+					continue
+				}
 				res_text := ""
 				if !inThinking && !thinkShown {
 					res_text += "<think>"
 					inThinking = true
 				}
 
-				for _, goal := range block.ReasoningPlanBlock.Goals {
+				for _, goal := range block.ReasoningPlanBlock.Goals[startIndex:] {
 					if goal.Description != "" && goal.Description != "Beginning analysis" && goal.Description != "Wrapping up analysis" {
 						res_text += goal.Description
 					}
 				}
+				lastReasoningGoalCount = len(block.ReasoningPlanBlock.Goals)
 				full_text += res_text
 				if !stream {
 					continue
@@ -348,17 +357,25 @@ func (c *Client) HandleResponse(body io.ReadCloser, stream bool, gc *gin.Context
 		}
 		for _, block := range response.Blocks {
 			if block.MarkdownBlock != nil && len(block.MarkdownBlock.Chunks) > 0 {
+				if len(block.MarkdownBlock.Chunks) < lastMarkdownChunkCount {
+					lastMarkdownChunkCount = 0
+				}
+				startIndex := lastMarkdownChunkCount
+				if startIndex >= len(block.MarkdownBlock.Chunks) {
+					continue
+				}
 				res_text := ""
 				if inThinking {
 					res_text += "</think>\n\n"
 					inThinking = false
 					thinkShown = true
 				}
-				for _, chunk := range block.MarkdownBlock.Chunks {
+				for _, chunk := range block.MarkdownBlock.Chunks[startIndex:] {
 					if chunk != "" {
 						res_text += chunk
 					}
 				}
+				lastMarkdownChunkCount = len(block.MarkdownBlock.Chunks)
 				full_text += res_text
 				if !stream {
 					continue
