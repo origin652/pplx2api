@@ -250,6 +250,8 @@ func (c *Client) HandleResponse(body io.ReadCloser, stream bool, gc *gin.Context
 	inThinking := false
 	thinkShown := false
 	final := false
+	lastMarkdownText := ""
+	lastReasoningText := ""
 	for scanner.Scan() {
 		select {
 		case <-clientDone:
@@ -327,17 +329,26 @@ func (c *Client) HandleResponse(body io.ReadCloser, stream bool, gc *gin.Context
 		for _, block := range response.Blocks {
 			// Handle reasoning plan blocks (thinking)
 			if block.ReasoningPlanBlock != nil && len(block.ReasoningPlanBlock.Goals) > 0 {
-
-				res_text := ""
-				if !inThinking && !thinkShown {
-					res_text += "<think>"
-					inThinking = true
-				}
-
+				blockText := ""
 				for _, goal := range block.ReasoningPlanBlock.Goals {
 					if goal.Description != "" && goal.Description != "Beginning analysis" && goal.Description != "Wrapping up analysis" {
-						res_text += goal.Description
+						blockText += goal.Description
 					}
+				}
+				if blockText == "" {
+					continue
+				}
+				res_text := blockText
+				if strings.HasPrefix(blockText, lastReasoningText) {
+					res_text = blockText[len(lastReasoningText):]
+				}
+				lastReasoningText = blockText
+				if res_text == "" {
+					continue
+				}
+				if !inThinking && !thinkShown {
+					res_text = "<think>" + res_text
+					inThinking = true
 				}
 				full_text += res_text
 				if !stream {
@@ -348,16 +359,27 @@ func (c *Client) HandleResponse(body io.ReadCloser, stream bool, gc *gin.Context
 		}
 		for _, block := range response.Blocks {
 			if block.MarkdownBlock != nil && len(block.MarkdownBlock.Chunks) > 0 {
-				res_text := ""
-				if inThinking {
-					res_text += "</think>\n\n"
-					inThinking = false
-					thinkShown = true
-				}
+				blockText := ""
 				for _, chunk := range block.MarkdownBlock.Chunks {
 					if chunk != "" {
-						res_text += chunk
+						blockText += chunk
 					}
+				}
+				if blockText == "" {
+					continue
+				}
+				res_text := blockText
+				if strings.HasPrefix(blockText, lastMarkdownText) {
+					res_text = blockText[len(lastMarkdownText):]
+				}
+				lastMarkdownText = blockText
+				if res_text == "" {
+					continue
+				}
+				if inThinking {
+					res_text = "</think>\n\n" + res_text
+					inThinking = false
+					thinkShown = true
 				}
 				full_text += res_text
 				if !stream {
